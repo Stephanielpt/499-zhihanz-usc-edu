@@ -22,7 +22,7 @@ using unittest::FakeCode::OK;
 using std::literals::chrono_literals::operator""ms;
 namespace unittest {
 // Can send a chirp automaticly given name time in ms and the number of chirps
-void AutoChirp(FakeService& service, string name, int micro, int chirp_num,
+void AutoChirp(FakeService& service, string name, string hashtags, int micro, int chirp_num,
                UnitTestKVClient& client) {
   int i = 0;
   while (i != chirp_num) {
@@ -33,6 +33,7 @@ void AutoChirp(FakeService& service, string name, int micro, int chirp_num,
     request.set_username(name);
     request.set_text(text);
     request.set_parent_id(parent_id);
+    request.set_hashtags(hashtags);
     std::this_thread::sleep_for(milliseconds(micro));
     service.chirp(&request, &reply, client);
     i++;
@@ -212,7 +213,7 @@ TEST(test, monitor) {
   MonitorRequest monitor_request;
   MonitorReply monitor_reply;
   monitor_request.set_username("Smith");
-  std::thread th1(AutoChirp, std::ref(service), "Adam", 100, 3,
+  std::thread th1(AutoChirp, std::ref(service), "Adam", "-1", 100, 3,
                   std::ref(client));
   //  A modified version of monitor which will automatically exit
   //  if time passed 510 ms in here
@@ -243,15 +244,15 @@ TEST(test, stream) {
   vector<Chirp> buffer;
   MonitorRequest monitor_request;
   MonitorReply monitor_reply;
-  monitor_request.set_username("Smith");
-  std::thread th1(AutoChirp, std::ref(service), "Adam", 100, 3,
+  monitor_request.set_username("fun");
+  std::thread th1(AutoChirp, std::ref(service), "Adam", "#fun", 100, 3,
                   std::ref(client));
   //  A modified version of monitor which will automatically exit
   //  if time passed 510 ms in here
   auto th2 = service.MonitorBuffer(&monitor_reply, buffer);
   service.SetNumMonitorLoop(110);
   service.OpenBuffer();
-  service.monitor(&monitor_request, &monitor_reply, client);
+  service.stream(&monitor_request, &monitor_reply, client);
   // Set the value in promise
   // Wait for thread to join
   th1.join();

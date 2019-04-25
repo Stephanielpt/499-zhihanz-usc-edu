@@ -17,20 +17,20 @@ using std::string;
 using std::vector;
 
 namespace services {
-// Receive a register request and tell the user whether theu are regited
-// successfully through status
-// const RegisterRequest* request: resgister name,
-// return Status::OK if registration succeed;
-// return Status(StatusCode::ALREADY_EXISTS,"This username have already used.");
-// if regist name already exists;
-// Get a vector of all the chirps ever
+
+// Get a vector of all the users ever
 auto ServiceImpl::GetAllUsers() {
   KeyValueStoreClient client(grpc::CreateChannel(
       "localhost:50000", grpc::InsecureChannelCredentials()));
   auto all_users = client.GetValue("all_users");
   return parser::Deparser(all_users);
 }
-
+// Receive a register request and tell the user whether theu are regited
+// successfully through status
+// const RegisterRequest* request: resgister name,
+// return Status::OK if registration succeed;
+// return Status(StatusCode::ALREADY_EXISTS,"This username have already used.");
+// if regist name already exists;
 Status ServiceImpl::registeruser(ServerContext *context,
                                  const RegisterRequest *request,
                                  RegisterReply *reply) {
@@ -306,7 +306,6 @@ Status ServiceImpl::stream(ServerContext *context,
       std::stringstream test(candidate_hashtags);
 			string segment;
 			vector<string> seglist;
-
 			while(std::getline(test, segment, ' '))
 			{
 			   seglist.push_back(segment);
