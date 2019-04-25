@@ -64,6 +64,7 @@ FakeCode FakeService::registeruser(const string &request, string &reply,
   if (client.Has(USER_ID + request) == true) {
     return FakeCode{ALREADY_EXISTS};
   }
+  client.Put("all_users", request);
   auto status1 = client.Put(USER_ID + request, "");
   if (status1 == false) return FakeCode{NOT_FOUND};
   auto status2 = client.Put(USER_FOLLOWED + request, "");
@@ -250,7 +251,7 @@ FakeCode FakeService::stream(const MonitorRequest *request,
   hashtag = "#" + hashtag;
   int64_t curr_loop = 0;
   while (curr_loop != monitor_refresh_times_) {
-    vector followed = GetAllUsers(client);
+    vector<string> followed = GetAllUsers(client);
     string all_of_the_users = "";
     if (followed.size() != 0) {
       all_of_the_users = followed[0];
@@ -286,10 +287,7 @@ FakeCode FakeService::stream(const MonitorRequest *request,
           std::unique_lock<mutex> monitor_lk(monitor_mutex_);
           // once buff mode is open, wait for MonitorBuffer function
           // to finish and start to receive another reply
-          if (buff_mode_) {
-            monitor_buf_signal_.wait(monitor_lk,
-                                     [this] { return !monitor_flag_; });
-          }
+          monitor_buf_signal_.wait(monitor_lk, [this] { return !monitor_flag_; });
           MonitorSet(reply, curr_chirp);
           monitor_flag_ = true;
           monitor_lk.unlock();

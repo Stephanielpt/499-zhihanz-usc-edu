@@ -115,3 +115,8 @@ In another `root/command/` file
 ./command -user=Bob -chirp="hooray" -hashtag="#celebrate #fun"
 ./command -user=Bob -chirp="this wont show up" -hashtag="no"
 ```
+
+If you are attempting to run the tests in service with ./unittest_service 
+you must test "monitor", "stream", and "stream_several" separately. 
+
+The file is defaulted to test monitor, so if you wish to test with the test "stream", uncomment it (lines 243-272) in unittest_service.cc, and comment out the test "monitor" (lines 212-240). Similarly, to test "stream_several", you will have to comment out the tests "monitor" as well as "stream".
