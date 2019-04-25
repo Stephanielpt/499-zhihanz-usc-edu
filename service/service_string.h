@@ -57,6 +57,8 @@ namespace unittest {
 // service For Unit Test Only
 class FakeService final {
  public:
+  // Get a vector of all the users ever
+  auto GetAllUsers(const UnitTestKVClient &client);
   // Get the request user name and send it to client_ database.
   // If register succcessed, return FakeCode{OK}
   // else return FakeCode{{NOT_FOUND}
@@ -84,10 +86,10 @@ class FakeService final {
   }
   // make a chirp string through username, text and parent_id
   string ChirpStringMaker(const string &username, const string &text,
-                          const string &parent_id) {
+                          const string &parent_id, const string &hashtags) {
     auto pair = id_generator_();
     auto chirpstring =
-        ChirpInit(username, text, pair.second, parent_id, pair.first);
+        ChirpInit(username, text, pair.second, parent_id, pair.first, hashtags);
     return chirpstring;
   }
   auto GetNumMonitorLoop() { return monitor_refresh_times_; }
@@ -113,6 +115,13 @@ class FakeService final {
   // data to chirpReply You can manually set loop number
   FakeCode monitor(const MonitorRequest *request, MonitorReply *reply,
                    const UnitTestKVClient &client);
+  // Stream a hashtag by looking at all users' chirps
+  // 5ms time it will loop over all users and send newly published
+  // data with the requested hashtag to chirpReply 
+  // You can manually set loop number
+  FakeCode stream(const MonitorRequest *request,
+                              MonitorReply *reply,
+                              const UnitTestKVClient &client);
   // Create another thread put updated monitor reply to vector<Chirp> buffer
   // using mutex monitor_mutex_ and condition_variable monitor_buf_signal_ to
   // synchronize examle usage: If you want to buffer the information from

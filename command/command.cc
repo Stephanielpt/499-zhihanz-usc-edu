@@ -9,6 +9,9 @@ using command_helper::kOTHERS;
 using command_helper::kREAD;
 using command_helper::kREGIST;
 using command_helper::kREPLY;
+using command_helper::kSTREAM;
+using command_helper::kTAG;
+using command_helper::kREPLYANDTAG;
 using format::FollowHandler;
 using format::HelpInfo;
 using format::PrintChirp;
@@ -20,10 +23,12 @@ using helper::ReadRequestMaker;
 DEFINE_string(regist, "", "What username you want to use?");
 DEFINE_string(user, "", "please enter ur username");
 DEFINE_string(chirp, "", "a new chirp with the given text");
+DEFINE_string(hashtag, "", "give the chirp this tag");
 DEFINE_string(reply, "", "please denote a chirp id you want to reply");
 DEFINE_string(follow, "", "please enter a username you want to follow");
 DEFINE_string(read, "", "read the chirp thread at a given id");
 DEFINE_bool(monitor, false, "please enter the user name you want to monitor");
+DEFINE_string(stream, "", "please enter the hashtag you want to stream");
 DEFINE_bool(lt, true, "little relation");
 namespace commandline {
 static const char DEFAULT_REPLY[]{"-1"};
@@ -45,9 +50,9 @@ Status CommandClient::RegisterUser(const string &registeruser) {
 }
 // Post a chirp
 Chirp CommandClient::ChirpPost(const string &username, const string &chirp,
-                               const string &reply) {
+                               const string &reply, const string &tag) {
   ClientContext context;
-  auto request = ChirpRequestMaker(username, chirp, reply);
+  auto request = ChirpRequestMaker(username, chirp, reply, tag);
   ChirpReply chirply;
   if (reply != DEFAULT_REPLY) {
     auto request = ReadRequestMaker(reply);
@@ -99,6 +104,21 @@ void CommandClient::Monitor(const string &username) {
   }
 }
 
+// stream a hashtag
+void CommandClient::Stream(const string &hashtag) {
+  ClientContext context;
+  auto request = MonitorRequestMaker(hashtag);
+  auto stream = stub_->stream(&context, request);
+  MonitorReply reply;
+  while (stream->Read(&reply)) {
+    PrintChirp(reply.chirp());
+  }
+  auto status = stream->Finish();
+  if (!status.ok()) {
+    cout << status.error_message() << endl;
+  }
+}
+
 }  // namespace commandline
 int main(int argc, char *argv[]) {
   google::ParseCommandLineFlags(&argc, &argv, true);
@@ -108,7 +128,8 @@ int main(int argc, char *argv[]) {
   HelpInfo();
   uint32_t mode =
       CommandHandler(FLAGS_regist, FLAGS_user, FLAGS_chirp, FLAGS_reply,
-                     FLAGS_read, FLAGS_follow, FLAGS_monitor);
+                     FLAGS_read, FLAGS_follow, FLAGS_monitor, FLAGS_stream,
+                     FLAGS_hashtag);
   if (mode == kREGIST) {
     auto status = client.RegisterUser(FLAGS_regist);
     RegistHandler(status, FLAGS_regist);
@@ -116,11 +137,22 @@ int main(int argc, char *argv[]) {
     LOG(INFO) << "PLease Input Valid informations";
   } else if (mode == kCHIRP) {
     LOG(INFO) << "Sent a chirp post";
-    auto chirpreply = client.ChirpPost(FLAGS_user, FLAGS_chirp, "-1");
+    auto chirpreply = client.ChirpPost(FLAGS_user, FLAGS_chirp, "-1", 
+      "-1");
     PrintChirp(chirpreply);
   } else if (mode == kREPLY) {
     LOG(INFO) << "Reply to " << FLAGS_reply;
-    auto chirpreply = client.ChirpPost(FLAGS_user, FLAGS_chirp, FLAGS_reply);
+    auto chirpreply = client.ChirpPost(FLAGS_user, FLAGS_chirp, FLAGS_reply, "-1");
+    PrintChirp(chirpreply);
+  } else if (mode == kREPLYANDTAG) {
+    LOG(INFO) << "Reply to " << FLAGS_reply << "with tag: " << FLAGS_hashtag;
+    auto chirpreply = client.ChirpPost(FLAGS_user, FLAGS_chirp, FLAGS_reply, 
+      FLAGS_hashtag);
+    PrintChirp(chirpreply);
+  } else if (mode == kTAG) {
+    LOG(INFO) << "Sent a chirp post with tag: " << FLAGS_hashtag;
+    auto chirpreply = client.ChirpPost(FLAGS_user, FLAGS_chirp, "-1", 
+      FLAGS_hashtag);
     PrintChirp(chirpreply);
   } else if (mode == kREAD) {
     LOG(INFO) << "read chirp thread " << FLAGS_read;
@@ -136,6 +168,9 @@ int main(int argc, char *argv[]) {
     LOG(INFO) << FLAGS_user << " starts to follow " << FLAGS_follow;
     auto status = client.Follow(FLAGS_user, FLAGS_follow);
     FollowHandler(status, FLAGS_follow);
+  } else if (mode == kSTREAM) {
+  	LOG(INFO) << "stream on hashtag: " << FLAGS_stream;
+    client.Stream(FLAGS_stream);
   } else {
     HelpInfo();
   }

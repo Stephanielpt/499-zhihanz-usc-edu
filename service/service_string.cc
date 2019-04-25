@@ -76,7 +76,7 @@ FakeCode FakeService::chirp(const ChirpRequest *request, ChirpReply *reply,
   auto has_or_not = client.Has(USER_ID + request->username());
   if (has_or_not == false) return FakeCode{NOT_FOUND};
   auto chirpstring = ChirpStringMaker(request->username(), request->text(),
-                                      request->parent_id());
+                                      request->parent_id(), request->hashtags());
   auto reply_chirp = StringToChirp(chirpstring);
   ChirpSet(reply, reply_chirp);
   auto id_chirp = client.Put(ID_CHIRP + reply_chirp.id(), chirpstring);
@@ -221,6 +221,96 @@ FakeCode FakeService::monitor(const MonitorRequest *request,
   monitor_buf_signal_.notify_one();
   return FakeCode{OK};
 }
+
+// Get a vector of all the users ever
+auto FakeService::GetAllUsers(const UnitTestKVClient &client) {
+  auto all_users = client.GetValue("all_users");
+  return services::parser::Deparser(all_users);
+}
+
+// stream all chirps with the given hashtag
+// const MonitorRequst *request contains the hashtag we want to stream
+// once received updated chirp, it will send to MonitorReply* reply
+// loop times represent the number of loops monitor want to use
+// default value of loop times is -1 represents loop forever
+// Class private variable std::mutex monitor_mutex_
+// std::condition_variable monitor_buf_signal_
+// bool monitor_flag_ and end_flag_ are used to synchronize monitor
+// and its buffer function MonitorBuffer.
+// if you want to buffer it, remeber to set buff_mode_ to be true
+// by using OpenBuffer() function
+// and when you do not want to buffer them
+// using CloseBuffer() to close
+FakeCode FakeService::stream(const MonitorRequest *request,
+                              MonitorReply *reply,
+                              const UnitTestKVClient &client) {
+  auto time_interval = refresh_timeval_;  // pick one refresh frequency
+  auto curr = GetMicroSec();
+  string hashtag = request->username();
+  hashtag = "#" + hashtag;
+  int64_t curr_loop = 0;
+  while (curr_loop != monitor_refresh_times_) {
+    vector followed = GetAllUsers(client);
+    string all_of_the_users = "";
+    if (followed.size() != 0) {
+      all_of_the_users = followed[0];
+    }
+    std::stringstream ss(all_of_the_users);
+      string usr;
+      vector<string> userlist;
+      while (std::getline(ss, usr, ' ')) {
+         userlist.push_back(usr);
+      }
+    std::this_thread::sleep_for(time_interval);
+    for (const auto &f : userlist) {
+      auto curr_id = GetUserId(f, client);
+      auto chirpstr = GetIdChirp(curr_id, client);
+      auto curr_chirp = StringToChirp(chirpstr);
+      auto chirp_time = curr_chirp.timestamp();
+      bool match = false;
+      auto candidate_hashtags = curr_chirp.hashtags();
+      std::stringstream test(candidate_hashtags);
+      string segment;
+      vector<string> seglist;
+
+      while(std::getline(test, segment, ' ')) {
+         seglist.push_back(segment);
+      }
+      for (const auto &s : seglist) {
+        if (hashtag == s) {
+          match = true;
+        }
+      }
+      if (chirp_time.useconds() > curr) {
+        if(match) {
+          std::unique_lock<mutex> monitor_lk(monitor_mutex_);
+          // once buff mode is open, wait for MonitorBuffer function
+          // to finish and start to receive another reply
+          if (buff_mode_) {
+            monitor_buf_signal_.wait(monitor_lk,
+                                     [this] { return !monitor_flag_; });
+          }
+          MonitorSet(reply, curr_chirp);
+          monitor_flag_ = true;
+          monitor_lk.unlock();
+          monitor_buf_signal_.notify_one();
+          curr = chirp_time.useconds();
+        }
+      }
+    }
+    // avoid of overflow
+    if (monitor_refresh_times_ != -1) {
+      curr_loop++;
+    }
+  }
+  // once it existed, using exit_flag_ to notify MonitorBuffer to exit.
+  std::lock_guard<std::mutex> lk(monitor_mutex_);
+  exit_flag_ = true;
+  monitor_refresh_times_ = -1;
+  monitor_buf_signal_.notify_one();
+  return FakeCode{OK};
+}
+
 // create a new threed to buffer const MonitorReply* reply Chirp data
 // vector<Chirp>& buffer is going to buffer Chirp data
 std::thread FakeService::MonitorBuffer(const MonitorReply *reply,
